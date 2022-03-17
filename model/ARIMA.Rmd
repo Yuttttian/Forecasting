@@ -1,0 +1,356 @@
+## HW2
+
+```{r}
+getwd()
+data <- read.csv("United_States_COVID-19_Cases_and_Deaths_by_State_over_Time.csv", header=T)
+head(data,5)
+```
+
+Team members and assigned states
+```{r}
+(emp.data <- data.frame(
+   Name = c("Chen, Joyce","Fu, Kexin","Guo, Zihan","Jiang, Yucheng","Lei, Yutian"), 
+   State = c("PR","AL","KY","ND","NC")
+))
+```
+
+### Data Cleaning
+
+Extract data.
+
+```{r}
+Extract <- function(SState) {
+  library(dplyr)
+  data = data %>% select(submission_date,state,conf_cases) %>% mutate(date=as.Date(data$submission_date, format='%m/%d/%Y')) %>% filter(state== SState) %>% filter(is.na(conf_cases)==FALSE) %>% arrange(date)
+  return(data)
+}
+
+# data is sorted by submission data
+PR = Extract("PR")
+AL = Extract("AL")
+KY = Extract("KY")
+ND = Extract("ND")
+NC = Extract("NC")
+```
+
+
+
+Plot time-series data.
+
+```{r}
+Plot_TimeSeries <- function(SState) {
+  yy_ts <- ts(SState$conf_cases,
+            start = c(2020, as.numeric(format(SState$date[1],'%j'))),
+            frequency = 365)
+  plot.ts(yy_ts)
+}
+Plot_TimeSeries(PR)
+Plot_TimeSeries(AL)
+Plot_TimeSeries(KY)
+Plot_TimeSeries(ND)
+Plot_TimeSeries(NC)
+```
+
+### Train model
+
+2022/2/6 and before as train set.
+
+```{r}
+Trans_ts <- function(SState) {
+    yy_ts <- ts(SState$conf_cases,
+            start = c(2020, as.numeric(format(SState$date[1],'%j'))),
+            frequency = 365)
+    return(yy_ts)
+}
+PR_ts <- Trans_ts(PR)
+AL_ts <- Trans_ts(AL)
+KY_ts <- Trans_ts(KY)
+ND_ts <- Trans_ts(ND)
+NC_ts <- Trans_ts(NC)
+```
+
+```{r}
+library("forecast")
+library("tseries")
+auto.arima(PR_ts) # ARIMA(1,2,3) 
+auto.arima(AL_ts) # ARIMA(3,2,2) 
+auto.arima(KY_ts) # ARIMA(3,2,2) 
+auto.arima(ND_ts) # ARIMA(5,2,2) 
+auto.arima(NC_ts) # ARIMA(4,2,2) 
+```
+
+
+```{r}
+## Use AIC_c if sample size is small (i.e., p/T ratio is large = 10% or more)
+## Use BIC if sample size is large (i.e., p/T ratio is small = 5% of less)
+## so use BIC
+
+ARIMA_Selection <- function(SState,p_star,d_star,q_star) {
+  library("forecast")
+  library("tseries")
+  
+  yy_ts <- ts(SState$conf_cases,
+        start = c(2020, as.numeric(format(SState$date[1],'%j'))),
+        frequency = 365)
+      
+  m <- data.frame(matrix(nrow=27,ncol=5))
+  names(m) <- c('p','d','q','BIC','AICc')
+  index=1
+  
+  set.seed(1)
+  for (p in p_star-1:p_star+1){
+    for (d in d_star-1:d_star+1){
+      for (q in q_star-1:q_star+1){
+        
+        m[index,1] = p
+        m[index,2] = d
+        m[index,3] = q
+        m[index,4] = Arima(yy_ts, order=c(p,d,q))$bic
+        m[index,5] = Arima(yy_ts, order=c(p,d,q))$aicc
+
+        index = index + 1
+      }
+    }
+  }
+  
+  result <- m %>% arrange(BIC) # sort by BIC
+  print(result)
+}
+
+```
+
+```{r}
+ARIMA_Selection(PR,1,2,3)
+ARIMA_Selection(AL,3,2,2)
+ARIMA_Selection(KY,3,2,2)
+ARIMA_Selection(ND,5,2,2)
+ARIMA_Selection(NC,4,2,2)
+```
+
+
+### model candidates based on bic
+
+### RP
+```{r}
+cv = read.csv("CrossValidation_data.csv")
+head(cv,5)
+```
+
+
+```{r}
+Extract <- function(SState) {
+  library(dplyr)
+  cv = cv %>% select(submission_date,state,conf_cases) %>% mutate(date=as.Date(cv$submission_date, format='%m/%d/%Y')) %>% filter(state == SState) %>% filter(is.na(conf_cases)==FALSE) %>% arrange(date)
+  return(cv)
+}
+
+# data is sorted by submission data
+PR_cv = Extract("PR")
+AL_cv = Extract("AL")
+KY_cv = Extract("KY")
+ND_cv = Extract("ND")
+NC_cv = Extract("NC")
+```
+
+
+```{r}
+PR_m1 <- Arima(PR_ts, order = c(1,2,3))
+PR_m2 <- Arima(PR_ts, order = c(1,1,3))			
+PR_m3 <- Arima(PR_ts, order = c(1,1,2))
+```
+
+
+```{r}
+# CrossValidation <- function(SState){
+#   PR_m1.predict <- forecast:::forecast.Arima(PR_m1, h = 10, level = c(68, 90))
+#   m <- as.data.frame(cbind(PR_cv$conf_cases, PR_m1.predict$mean[1:3]))
+#   names(m) = c("true","predicted")
+#   (sse = sum((m$true-m$predicted)**2))
+# }
+# plot(PR_m1.predict)
+```
+
+
+```{r}
+PR_m1.predict <- forecast:::forecast.Arima(PR_m1, h = 12, level = c(68, 90))
+m <- as.data.frame(cbind(PR_cv$conf_cases, PR_m1.predict$mean[1:3]))
+names(m) = c("true","predicted")
+(sse_1 = sum((m$true-m$predicted)**2))
+
+PR_m2.predict <- forecast:::forecast.Arima(PR_m2, h = 12, level = c(68, 90))
+m <- as.data.frame(cbind(PR_cv$conf_cases, PR_m2.predict$mean[1:3]))
+names(m) = c("true","predicted")
+(sse_2 = sum((m$true-m$predicted)**2))
+
+PR_m3.predict <- forecast:::forecast.Arima(PR_m3, h = 12, level = c(68, 90))
+m <- as.data.frame(cbind(PR_cv$conf_cases, PR_m3.predict$mean[1:3]))
+names(m) = c("true","predicted")
+(sse_3 = sum((m$true-m$predicted)**2))
+```
+```{r}
+as.vector(PR_m1.predict$mean[6:12])
+```
+
+### AL
+
+```{r}
+AL_m1 <- Arima(AL_ts, order = c(3,2,2))
+AL_m2 <- Arima(AL_ts, order = c(2,2,2))			
+AL_m3 <- Arima(AL_ts, order = c(3,2,1))
+
+AL_m1.predict <- forecast:::forecast.Arima(AL_m1, h = 12, level = c(68, 90))
+m <- as.data.frame(cbind(AL_cv$conf_cases, AL_m1.predict$mean[1:3]))
+names(m) = c("true","predicted")
+(sse_1 = sum((m$true-m$predicted)**2))
+
+AL_m2.predict <- forecast:::forecast.Arima(AL_m2, h = 12, level = c(68, 90))
+m <- as.data.frame(cbind(AL_cv$conf_cases, AL_m2.predict$mean[1:3]))
+names(m) = c("true","predicted")
+(sse_2 = sum((m$true-m$predicted)**2))
+
+AL_m3.predict <- forecast:::forecast.Arima(AL_m3, h = 12, level = c(68, 90))
+m <- as.data.frame(cbind(AL_cv$conf_cases, AL_m3.predict$mean[1:3]))
+names(m) = c("true","predicted")
+(sse_3 = sum((m$true-m$predicted)**2))
+```
+
+```{r}
+AL_m3.predict$mean[6:12]
+```
+
+### KY
+
+```{r}
+KY_m1 <- Arima(KY_ts, order = c(2,2,2))
+KY_m2 <- Arima(KY_ts, order = c(3,2,2))			
+KY_m3 <- Arima(KY_ts, order = c(3,2,1))
+```
+
+### ND
+
+```{r}
+ND_m1 <- Arima(ND_ts, order = c(5,2,2))
+ND_m2 <- Arima(ND_ts, order = c(4,2,2))			
+ND_m3 <- Arima(ND_ts, order = c(3,2,2))
+```
+
+### NC
+
+```{r}
+NC_m1 <- Arima(NC_ts, order = c(2,2,2))
+NC_m2 <- Arima(NC_ts, order = c(4,2,2))			
+NC_m3 <- Arima(NC_ts, order = c(3,2,2))
+
+
+NC_m1.predict <- forecast:::forecast.Arima(NC_m1, h = 12, level = c(68, 90))
+m <- as.data.frame(cbind(NC_cv$conf_cases, NC_m1.predict$mean[1:3]))
+names(m) = c("true","predicted")
+(sse_1 = sum((m$true-m$predicted)**2))
+
+NC_m2.predict <- forecast:::forecast.Arima(NC_m2, h = 12, level = c(68, 90))
+m <- as.data.frame(cbind(NC_cv$conf_cases, NC_m2.predict$mean[1:3]))
+names(m) = c("true","predicted")
+(sse_2 = sum((m$true-m$predicted)**2))
+
+NC_m3.predict <- forecast:::forecast.Arima(NC_m3, h = 12, level = c(68, 90))
+m <- as.data.frame(cbind(NC_cv$conf_cases, NC_m3.predict$mean[1:3]))
+names(m) = c("true","predicted")
+(sse_3 = sum((m$true-m$predicted)**2))
+```
+
+
+```{r}
+NC_m3.predict$mean[6:12]
+```
+
+
+
+
+
+### KY
+
+```{r}
+library("forecast")
+library("tseries")
+
+KY_dates <- seq(KY$date[1], KY$date[702], by='day')
+KY_ts <- ts(KY$conf_cases,
+            start = c(2020, as.numeric(format(KY_dates[1],'%j'))),
+            frequency = 365)
+```
+
+```{r}
+KY_m_best <- auto.arima(KY_ts) #(3,2,2)
+```
+
+```{r}
+KY_m <- data.frame(matrix(nrow=27,ncol=4))
+names(KY_m) <- c('p','d','q','AICc')
+index=1
+
+for (i in 2:4){
+  for (j in 3){ #d=3 otherwise non-stationary
+    for (k in 1:3){
+      KY_m[index,1]=i
+      KY_m[index,2]=j
+      KY_m[index,3]=k
+      KY_m[index,4]=Arima(KY_ts, order=c(i,j,k))$aicc
+      index=index+1
+    }
+  }
+}
+
+KY_m %>% arrange(AICc)
+```
+
+#### Best ARIMA models for KY
+
+```{r}
+KY_m1 <- Arima(KY_ts, order=c(4,3,3))
+KY_m2 <- Arima(KY_ts, order=c(3,3,3))
+KY_m3 <- Arima(KY_ts, order=c(4,3,2))
+```
+
+### ND
+
+```{r}
+ND_dates <- seq(ND$date[1], ND$date[659], by='day')
+ND_ts <- ts(ND$conf_cases,
+            start = c(2020, as.numeric(format(ND_dates[1],'%j'))),
+            frequency = 365)
+```
+
+```{r}
+ND_m_best <- auto.arima(ND_ts) #(5,2,2)
+ND_m_best
+```
+
+```{r}
+ND_m <- data.frame(matrix(nrow=27,ncol=4))
+names(ND_m) <- c('p','d','q','AICc')
+index=1
+
+for (i in 2:4){
+  for (j in 1:3){
+    for (k in 1:3){
+      ND_m[index,1]=i
+      ND_m[index,2]=j
+      ND_m[index,3]=k
+      ND_m[index,4]=Arima(ND_ts, order=c(i,j,k))$aicc
+      index=index+1
+    }
+  }
+}
+
+ND_m %>% arrange(AICc)
+```
+
+#### Best ARIMA models for ND
+
+```{r}
+ND_m1 <- Arima(ND_ts, order=c(4,2,3))
+ND_m2 <- Arima(ND_ts, order=c(3,3,3))
+ND_m3 <- Arima(ND_ts, order=c(4,3,3))
+```
+
+#### 
