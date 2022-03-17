@@ -1,0 +1,400 @@
+---
+title: "Holt-Winters Model"
+author: "GroupA"
+date: "1/19/2022"
+---
+
+
+1.  Select one time series from data_week.csv
+2.  Try the four combinations of beta and gamma as on/off
+3.  Present the plots of data series, trend, and seasonal components, and check residuals for each of the four combinations
+4.  Make out-of-sample forecast for 26 weeks with confidence bands.
+5.  Recommend one forecasting model -- give your justification
+
+```{r}
+data<-read.csv("data_week.csv", sep=",",dec=".",header=T) 	# weekly data
+
+library("forecast")	
+```
+
+## Metric 1: online budget - by Joyce Chen
+
+```{r}
+yy <- ts(data$online_budget, frequency = 52, start = c(2015, 1))
+plot.ts(yy)  
+```
+
+```{r}
+##### Time Series Decomposition  #####
+budget <- decompose(yy)
+budget.trend = budget$trend
+budget.seasonal = budget$seasonal
+budget.resid = budget$random
+budget.season.adj = yy - budget.seasonal									# seasonally adjusted sales
+plot.ts(cbind(yy,budget.trend, budget.seasonal, budget.resid, budget.season.adj))
+
+```
+
+```{r}
+##### Holt-Winters Filter  #####
+#### Combination 1: beta = TRUE, gamma = TRUE
+out1 = HoltWinters(yy, beta = TRUE, gamma = TRUE) 				# Holt-Winters Filtering - only level updating b/c beta and gamma are zeros
+out1														# output -- see alpha estimate
+out1$fitted 												# fitted values in training data
+plot(out1)													# graph of actual (black) vs fitted (red)
+
+##### Check Residuals
+checkresiduals(out1)
+
+##### Out of Sample Forecasts
+out1a = forecast:::forecast.HoltWinters(out1, h = 26, level = c(68, 95))	 
+# forecast horizon 26 weeks. 
+# level = c(68, 95) - CI with 1 SD and 2SD
+plot(out1a)
+```
+
+```{r}
+#### Combination 2: beta = TRUE, gamma = FALSE
+out2 = HoltWinters(yy, beta = TRUE, gamma = FALSE) 				
+out2													
+out2$fitted 											
+plot(out2)													
+
+##### Check Residuals
+checkresiduals(out2)
+
+##### Out of Sample Forecasts
+out2a = forecast:::forecast.HoltWinters(out2, h = 26, level = c(68, 95))	 
+plot(out2a)
+```
+
+```{r}
+#### Combination 3: beta = FALSE, gamma = TRUE
+out3 = HoltWinters(yy, beta = FALSE, gamma = TRUE) 				
+out3													
+out3$fitted 											
+plot(out3)													
+
+##### Check Residuals
+checkresiduals(out3)
+
+##### Out of Sample Forecasts
+out3a = forecast:::forecast.HoltWinters(out3, h = 26, level = c(68, 95))	 
+plot(out3a)
+```
+
+```{r}
+#### Combination 4: beta = FALSE, gamma = FALSE
+out4 = HoltWinters(yy, beta = FALSE, gamma = FALSE) 				
+out4													
+out4$fitted 											
+plot(out4)													
+
+##### Check Residuals
+checkresiduals(out4)
+
+##### Out of Sample Forecasts
+out4a = forecast:::forecast.HoltWinters(out4, h = 26, level = c(68, 95))	 
+plot(out4a)
+```
+
+### Model Selection
+
+1.  Comparing the plots of the forecasts with different confidence intervals, the first one and the third one show similar pattern as the previous periods. The last combination without trend and seasonality shows a flat line, which apparently does not conform with the previous pattern. The second combination with trend but no seasonality shows a line going downward, which the previous pattern roughly goes horizontal.
+2.  Then comparing the first and the third combinations, both the residual checks show slight systematic patterns. However, by carefully evaluating the forecast plots, we conclude the third one is a better fit.
+3.  Therefore, regarding online budget, we select the model with seasonality and with no trend as the best forecasting model.
+
+## Metric 2: direct_emails - by Kexin Fu
+
+```{r}
+dmails = data[,4]/1000		# thousands in xyz currency
+
+##### Representing Data as Time Series Objects #####
+
+yy = ts(dmails, frequency = 52,start = c(2015,1)) # coverts sales data as time series object with start date and weekly frequency
+plot.ts(yy)									# ALWAYS plot time series to see patterns: trend, cycle, variance over time
+```
+
+```{r}
+## Trend and Seasonal Components of the original
+dimail_d = decompose(yy) 
+dimail.trend = dimail_d$trend
+dimail.seasonal = dimail_d$seasonal
+dimail.resid = dimail_d$random
+dimail.season.adj = yy - dimail.seasonal									# seasonally adjusted sales
+plot.ts(cbind(yy,dimail.trend, dimail.seasonal, dimail.resid, dimail.season.adj))
+```
+
+```{r}
+##### Holt-Winters Filter  #####
+
+# 1. Beta = T, Gamma = T
+
+out1 = HoltWinters(yy, beta = T, gamma = T) 				# Holt-Winters Filtering - only level updating b/c beta and gamma are zeros
+out1														# output -- see alpha estimate
+out1$fitted 												# fitted values in training data
+plot(out1)													# graph of actual (black) vs fitted (red)
+
+##### Check Residuals
+checkresiduals(out1)
+
+# 2. Beta = T, Gamma = F
+
+out2 = HoltWinters(yy, beta = T, gamma = F) 				# Holt-Winters Filtering - only level updating b/c beta and gamma are zeros
+out2														# output -- see alpha estimate
+out2$fitted 												# fitted values in training data
+plot(out2)													# graph of actual (black) vs fitted (red)
+
+##### Check Residuals
+checkresiduals(out2)
+
+# 3. Beta = F, Gamma = T
+
+out3 = HoltWinters(yy, beta = F, gamma = T) 				# Holt-Winters Filtering - only level updating b/c beta and gamma are zeros
+out3														# output -- see alpha estimate
+out3$fitted 												# fitted values in training data
+plot(out3)													# graph of actual (black) vs fitted (red)
+
+##### Check Residuals
+checkresiduals(out3)
+
+# 4. Beta = F, Gamma = F
+
+out4 = HoltWinters(yy, beta = F, gamma = F) 				# Holt-Winters Filtering - only level updating b/c beta and gamma are zeros
+out4														# output -- see alpha estimate
+out4$fitted 												# fitted values in training data
+plot(out4)													# graph of actual (black) vs fitted (red)
+
+##### Check Residuals
+checkresiduals(out4)
+```
+
+```{r}
+##### Out of Sample Forecasts
+
+							# install "forecast" package and load the library		
+result1 = forecast:::forecast.HoltWinters(out1, h = 26, level = c(68, 95))	 
+plot(result1)
+
+result2 = forecast:::forecast.HoltWinters(out2, h = 26, level = c(68, 95))	 
+plot(result2)
+
+result3 = forecast:::forecast.HoltWinters(out3, h = 26, level = c(68, 95))	 
+plot(result3)
+
+result4 = forecast:::forecast.HoltWinters(out4, h = 26, level = c(68, 95))	 
+plot(result4)
+
+```
+
+### Model Selection
+
+I will recommend the forecast model with beta = T and gamma = T. The overall fitting looks well. Residuals look random.
+
+And gamma = T models fit much better than gamma = F models by looking the fitting plots, since there is clear seasonality in the decompose graph as well.
+
+Moreover,the decompose graph shows clear upward trend. So the beta is also set to T.
+
+## Metric 3: promotion - by Yutian Lei
+
+```{r}
+promotion = data$promotion		# categorical variable for promotion
+
+##### Representing Data as Time Series Objects #####
+xx = ts(promotion, frequency = 52, start = c(2015,1))
+plot.ts(xx,ylab = "promotion")
+```
+
+```{r}
+##### Time Series Decomposition  #####
+promo = decompose(xx) 
+promo.trend = promo$trend
+promo.seasonal = promo$seasonal
+promo.resid = promo$random
+promo.season.adj = xx - promo.seasonal			
+plot.ts(cbind(xx,promo.trend, promo.seasonal, promo.resid, promo.season.adj))
+```
+
+```{r}
+# Try the four combinations of beta and gamma as on/off
+##### Holt-Winters Filter  #####
+tt = HoltWinters(xx, beta = TRUE, gamma = TRUE)
+tf = HoltWinters(xx, beta = TRUE, gamma = FALSE)
+ft = HoltWinters(xx, beta = FALSE, gamma = TRUE)
+ff = HoltWinters(xx, beta = FALSE, gamma = FALSE)
+
+# graph of actual (black) vs fitted (red)
+plot(tt)													
+plot(tf)													
+plot(ft)													
+plot(ff)													
+```
+
+```{r}
+##### Check Residuals
+checkresiduals(tt)
+checkresiduals(tf)
+checkresiduals(ft)
+checkresiduals(ff)
+```
+
+```{r}
+# forecast horizon 26 weeks, CI with 1 SD and 2SD
+forecast_tt = forecast:::forecast.HoltWinters(tt, h = 26, level = c(68, 95))
+plot(forecast_tt)
+
+forecast_tf = forecast:::forecast.HoltWinters(tf, h = 26, level = c(68, 95))
+plot(forecast_tf)
+
+forecast_ft = forecast:::forecast.HoltWinters(ft, h = 26, level = c(68, 95))
+plot(forecast_ft)
+
+forecast_ff = forecast:::forecast.HoltWinters(ff, h = 26, level = c(68, 95))
+plot(forecast_ff)
+```
+
+### Model Selection
+
+I would recommend the combination where beta is off and gamma is on for the following reasons:\
+- From the graph of actual (black) vs fitted (red), this forecast model mostly fitted the actual values.\
+- From the residual plot, residuals are in a constant interval. ACF graph looks good with only one outside of the confidence bound. The residuals are nearly normally distributed.
+
+## Metric 4: wind_speed - Yucheng Jiang
+
+```{r}
+wind_speed = data[,12]
+
+##### Representing Data as Time Series Objects #####
+ts_wind_speed = ts(wind_speed, frequency = 52, start = c(2015,1))
+plot.ts(ts_wind_speed)
+```
+
+```{r}
+##### Time Series Decomposition  #####
+wind_speed_d <- decompose(ts_wind_speed)
+wind_speed_d.trend = wind_speed_d$trend
+wind_speed_d.seasonal = wind_speed_d$seasonal
+wind_speed_d.resid = wind_speed_d$random
+wind_speed_d.season.adj = ts_wind_speed - wind_speed_d.seasonal	# seasonally adjusted sales
+plot.ts(cbind(ts_wind_speed, wind_speed_d.trend, wind_speed_d.seasonal, wind_speed_d.resid, wind_speed_d.season.adj))
+```
+
+```{r}
+###### beta = TRUE, gamma = TRUE ######
+##### Holt-Winters Filter  #####
+out1_1 = HoltWinters(ts_wind_speed, beta = TRUE, gamma = TRUE)
+out1_1														# output -- see alpha estimate
+out1_1$fitted 										# fitted values in training data
+plot(out1_1)											# graph of actual (black) vs fitted (red)
+checkresiduals(out1_1)
+
+##### Out of Sample Forecasts
+out2_1 = forecast:::forecast.HoltWinters(out1_1, h = 26, level = c(68, 95))	 
+# CI with 1 SD and 2SD
+plot(out2_1)
+```
+
+```{r}
+###### beta = FALSE, gamma = TRUE ######
+##### Holt-Winters Filter  #####
+out1_2 = HoltWinters(ts_wind_speed, beta = FALSE, gamma = TRUE)
+# beta=FALSE: no trend; gamma=FALSE: no seasonality
+out1_2														# output -- see alpha estimate
+out1_2$fitted 										# fitted values in training data
+plot(out1_2)											# graph of actual (black) vs fitted (red)
+checkresiduals(out1_2)
+
+##### Out of Sample Forecasts
+out2_2 = forecast:::forecast.HoltWinters(out1_2, h = 26, level = c(68, 95))	 
+# CI with 1 SD and 2SD
+plot(out2_2)
+```
+
+```{r}
+###### beta = FALSE, gamma = FALSE ######
+##### Holt-Winters Filter  #####
+out1_3 = HoltWinters(ts_wind_speed, beta = FALSE, gamma = FALSE)
+# beta=FALSE: no trend; gamma=FALSE: no seasonality
+out1_3														# output -- see alpha estimate
+out1_3$fitted 										# fitted values in training data
+plot(out1_3)											# graph of actual (black) vs fitted (red)
+checkresiduals(out1_3)
+
+##### Out of Sample Forecasts
+out2_3 = forecast:::forecast.HoltWinters(out1_3, h = 26, level = c(68, 95))	 
+# CI with 1 SD and 2SD
+plot(out2_3)
+```
+
+```{r}
+###### beta = TRUE, gamma = FALSE ######
+##### Holt-Winters Filter  #####
+out1_4 = HoltWinters(ts_wind_speed, beta = TRUE, gamma = FALSE)
+# beta=FALSE: no trend; gamma=FALSE: no seasonality
+out1_4														# output -- see alpha estimate
+out1_4$fitted 										# fitted values in training data
+plot(out1_4)											# graph of actual (black) vs fitted (red)
+checkresiduals(out1_4)
+
+##### Out of Sample Forecasts
+out2_4 = forecast:::forecast.HoltWinters(out1_4, h = 26, level = c(68, 95))	 
+# CI with 1 SD and 2SD
+plot(out2_4)
+```
+
+### Model Selection
+
+For the wind_speed metric, the model with beta = FALSE and gamma = TRUE will be the most suitable one for 3 reasons.
+
+1.  From the graph of actual (black) vs fitted (red), this forecast model performs quite well.
+2.  According to the residual plots, the residual checks show similar patterns. However, by carefully evaluating the forecast plots, we conclude the last one is a better fit.
+3.  Comparing the plots of the forecasts with different confidence intervals, the second model has a reasonable confidence interval (1-7).
+
+## Metric 5: avg_hours_sun - by Zihan Guo
+
+```{r}
+sun = ts(data['avg_hours_sun'], frequency=52, start=c(2015,1))
+plot.ts(sun)
+```
+
+```{r}
+#Decomposition
+sun_dec = decompose(sun)
+sun_dec.trend = sun_dec$trend
+sun_dec.seasonal = sun_dec$seasonal
+sun_dec.res = sun_dec$random
+sun_dec.season.adj = sun-sun_dec.seasonal
+plot.ts(cbind(sun,sun_dec.trend,sun_dec.seasonal,sun_dec.res,sun_dec.season.adj))
+```
+
+```{r}
+#Holt-Winters Filter
+filter1 = HoltWinters(sun,beta=FALSE,gamma=FALSE)
+filter2 = HoltWinters(sun,beta=TRUE,gamma=FALSE)
+filter3 = HoltWinters(sun,beta=FALSE,gamma=TRUE)
+filter4 = HoltWinters(sun,beta=TRUE,gamma=TRUE)
+#beta=FALSE,gamma=FALSE
+plot(filter1)
+out1=forecast:::forecast.HoltWinters(filter1, h = 26, level = c(68, 95))	 
+plot(out1)
+checkresiduals(filter1)
+#beta=TRUE,gamma=FALSE
+plot(filter2)
+out2=forecast:::forecast.HoltWinters(filter2, h = 26, level = c(68, 95))	 
+plot(out2)
+checkresiduals(filter2)
+#beta=FALSE,gamma=TRUE
+plot(filter3)
+out3=forecast:::forecast.HoltWinters(filter3, h = 26, level = c(68, 95))	 
+plot(out3)
+checkresiduals(filter3)
+#beta=TRUE,gamma=TRUE
+plot(filter4)
+out4=forecast:::forecast.HoltWinters(filter4, h = 26, level = c(68, 95))	 
+plot(out4)
+checkresiduals(filter4)
+```
+
+### Model Selection
+
+Choose the one with gamma but without beta, because predictions are negative when using beta, and the model with gamma fits the data better than constant model.
